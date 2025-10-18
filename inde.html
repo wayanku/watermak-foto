@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watermark Foto Otomatis</title>
+    <!-- Memuat library untuk membaca metadata foto -->
+    <script src="https://cdn.jsdelivr.net/npm/exifr/dist/lite.umd.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        :root {
+            --primary-color: #007AFF;
+            --background-color: #f0f2f5;
+            --card-background: #ffffff;
+            --text-color: #1d1d1f;
+            --subtext-color: #86868b;
+            --border-color: #d1d1d6;
+            --slider-track: #e9e9ed;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--background-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background-color: var(--card-background);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            text-align: center;
+        }
+
+        .header {
+            padding: 25px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-color);
+            margin: 0 0 10px;
+        }
+
+        .header p {
+            font-size: 16px;
+            color: var(--subtext-color);
+            margin: 0;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 40px 20px;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        
+        .upload-area:hover, .upload-area.dragover {
+            background-color: #f9f9f9;
+            border-color: var(--primary-color);
+        }
+
+        .upload-area p {
+            margin: 10px 0 0;
+            color: var(--subtext-color);
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .preview-area {
+            display: none;
+            margin-top: 20px;
+        }
+        
+        #preview-canvas {
+            max-width: 100%;
+            border-radius: 12px;
+            background-color: #eee;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .button {
+            display: inline-block;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            flex-grow: 1;
+        }
+
+        .button:hover {
+            background-color: #0056b3;
+        }
+
+        .button:active {
+            transform: scale(0.98);
+        }
+        
+        #download-btn {
+            background-color: #34C759; /* Green for download */
+        }
+        #download-btn:hover {
+            background-color: #2ca349;
+        }
+
+        #reset-btn {
+            background-color: #6c757d;
+        }
+        #reset-btn:hover {
+            background-color: #5a6268;
+        }
+
+        .presets-gallery {
+            display: flex;
+            gap: 10px;
+            padding-bottom: 20px;
+            overflow-x: auto;
+            -ms-overflow-style: none; /* IE and Edge */
+            scrollbar-width: none; /* Firefox */
+        }
+        .presets-gallery::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Opera */
+        }
+
+        .preset-btn {
+            padding: 8px 15px;
+            border: 1px solid var(--border-color);
+            background-color: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--subtext-color);
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .preset-btn:hover, .preset-btn.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .edit-controls {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .edit-controls h3 {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--subtext-color);
+            text-transform: uppercase;
+            margin: 10px 0 0;
+            letter-spacing: 0.5px;
+            text-align: left;
+        }
+        .edit-controls h3:not(:first-child) {
+            border-top: 1px solid var(--border-color);
+            padding-top: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .control-group label {
+            font-size: 14px;
+            color: var(--subtext-color);
+            width: 80px;
+            text-align: left;
+        }
+
+        .control-group input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            background: var(--slider-track);
+            border-radius: 5px;
+            outline: none;
+            transition: opacity .2s;
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary-color);
+            cursor: pointer;
+            border-radius: 50%;
+            border: 3px solid var(--card-background);
+        }
+
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: var(--primary-color);
+            animation: spin 1s ease infinite;
+            margin: 20px auto;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>Watermark Foto Otomatis</h1>
+            <p>Unggah foto untuk menambahkan bingkai dan metadata "Shot on".</p>
+        </div>
+        <div class="main-content">
+            <div id="upload-box">
+                <label for="file-input" class="upload-area" id="upload-label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="#d1d1d6" viewBox="0 0 256 256"><path d="M208,88H152V32a8,8,0,0,0-16,0V88H80a8,8,0,0,0-5.66,13.66l64,64a8,8,0,0,0,11.32,0l64-64A8,8,0,0,0,208,88Zm-8,2.34L136,154.34,72,88H48a8,8,0,0,0-8,8v96a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V96a8,8,0,0,0-8-8H200Z"></path></svg>
+                    <p><b>Klik untuk memilih file</b><br>atau seret foto ke sini</p>
+                </label>
+                <input type="file" id="file-input" accept="image/jpeg, image/png, image/webp">
+            </div>
+
+            <div id="loader" class="spinner"></div>
+
+            <div class="preview-area" id="preview-box">
+                <canvas id="preview-canvas"></canvas>
+                
+                <div class="presets-gallery" id="presets-container">
+                    <!-- Preset buttons will be injected here by JS -->
+                </div>
+
+                <div class="edit-controls">
+                    <h3>Dasar</h3>
+                    <div class="control-group">
+                        <label for="brightness">Kecerahan</label>
+                        <input type="range" id="brightness" min="0" max="200" value="100" data-filter="brightness" data-unit="%">
+                    </div>
+                    <div class="control-group">
+                        <label for="contrast">Kontras</label>
+                        <input type="range" id="contrast" min="0" max="200" value="100" data-filter="contrast" data-unit="%">
+                    </div>
+                    <div class="control-group">
+                        <label for="saturation">Saturasi</label>
+                        <input type="range" id="saturation" min="0" max="200" value="100" data-filter="saturate" data-unit="%">
+                    </div>
+
+                    <h3>Warna</h3>
+                     <div class="control-group">
+                        <label for="temperature">Suhu</label>
+                        <input type="range" id="temperature" min="-50" max="50" value="0">
+                    </div>
+
+                    <h3>Detail</h3>
+                    <div class="control-group">
+                        <label for="sharpen">Ketajaman</label>
+                        <input type="range" id="sharpen" min="0" max="100" value="0">
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <a href="#" id="download-btn" class="button">Unduh Foto</a>
+                    <button id="reset-all-btn" class="button" style="background-color: #ff9500;">Reset Semua</button>
+                    <button id="reset-btn" class="button">Pilih Lain</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadBox = document.getElementById('upload-box');
+        const uploadLabel = document.getElementById('upload-label');
+        const fileInput = document.getElementById('file-input');
+        const previewBox = document.getElementById('preview-box');
+        const canvas = document.getElementById('preview-canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const downloadBtn = document.getElementById('download-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const resetAllBtn = document.getElementById('reset-all-btn');
+        const loader = document.getElementById('loader');
+        
+        // Kontrol Editor
+        const sliders = document.querySelectorAll('.control-group input[type="range"]');
+        const presetsContainer = document.getElementById('presets-container');
+
+        // Variabel untuk menyimpan gambar asli dan metadata
+        let originalImageData = null; // Menyimpan data piksel asli
+        let originalImage = null;
+        let imageMetadata = {};
+        let imageFileName = '';
+        let isRendering = false;
+        let renderTimeout;
+
+        // --- Web Worker untuk proses berat ---
+        let worker = null;
+        const workerCode = `
+            self.onmessage = function(e) {
+                const { imageData, temperature, sharpen } = e.data;
+                const data = imageData.data;
+                const width = imageData.width;
+                const height = imageData.height;
+
+                // 1. Apply Temperature
+                if (temperature !== 0) {
+                    const tempValue = temperature / 50; // normalize to -1 to 1
+                    for (let i = 0; i < data.length; i += 4) {
+                        if (tempValue > 0) { // Warm
+                            data[i] = Math.min(255, data[i] + 30 * tempValue);
+                            data[i + 1] = Math.min(255, data[i + 1] + 15 * tempValue);
+                        } else { // Cool
+                            data[i + 2] = Math.min(255, data[i + 2] - 30 * tempValue);
+                        }
+                    }
+                }
+
+                // 2. Apply Sharpen (Convolution)
+                if (sharpen > 0) {
+                    const sharpenFactor = sharpen / 100;
+                    const kernel = [
+                        [0, -sharpenFactor, 0],
+                        [-sharpenFactor, 1 + 4 * sharpenFactor, -sharpenFactor],
+                        [0, -sharpenFactor, 0]
+                    ];
+                    const side = Math.floor(kernel.length / 2);
+                    const tempData = new Uint8ClampedArray(data); // Salin data asli untuk dibaca
+
+                    for (let y = 0; y < height; y++) {
+                        for (let x = 0; x < width; x++) {
+                            const dstOff = (y * width + x) * 4;
+                            let r = 0, g = 0, b = 0;
+
+                            for (let cy = 0; cy < kernel.length; cy++) {
+                                for (let cx = 0; cx < kernel.length; cx++) {
+                                    const scy = Math.min(height - 1, Math.max(0, y + cy - side));
+                                    const scx = Math.min(width - 1, Math.max(0, x + cx - side));
+                                    const srcOff = (scy * width + scx) * 4;
+                                    const wt = kernel[cy][cx];
+                                    r += tempData[srcOff] * wt;
+                                    g += tempData[srcOff + 1] * wt;
+                                    b += tempData[srcOff + 2] * wt;
+                                }
+                            }
+                            data[dstOff] = Math.max(0, Math.min(255, r));
+                            data[dstOff + 1] = Math.max(0, Math.min(255, g));
+                            data[dstOff + 2] = Math.max(0, Math.min(255, b));
+                        }
+                    }
+                }
+                
+                self.postMessage({ imageData });
+            };
+        `;
+
+        // Logo Apple dalam format Base64 (agar tidak perlu file eksternal)
+        // Logo diperbarui dengan warna hitam (#000000)
+        const appleLogoSrc = 'data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyB3aWR0aD0iNTEycHgiIGhlaWdodD0iNTEycHgiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB2ZXJzaW9uPSIxLjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiPgogICAgPHRpdGxlPkFwcGxlPC90aXRsZT4KICAgIDxnIGlkPSJQYWdlLTEiIHN0cm9rZT0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIxIiBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPgogICAgICAgIDxnIGlkPSJBcHBsZSIgZmlsbD0iIzAwMDAwMCIgZmlsbC1ydWxlPSJub256ZXJvIj4KICAgICAgICAgICAgPHBhdGggZD0iTTM2MS40NTUsMzg0LjI1OCBDMzYxLjQ1NSwzODQuMjU4IDM4MC4zMTcsMzY5LjU3NiAzOTguNTUsMzU0LjY2OSBDNDM1Ljc4MiwzMjQuMTEgNDUxLDMwMS4zNzcgNDUxLDI0Ny4xNjYgQzQ1MSwxNzIuMjA4IDM4OS45OTUsMTEyIDMxNC42NDUsMTEyIEMyNjIuNTQ0LDExMiAyMjcuMzQ3LDE0Mi44MDYgMjAzLjU4MywxNDIuODA2IEMxNzguNzEsMTQyLjgwNiAxNDkuMDY0LDExOS4wMTkgMTAxLjM4NCwxMTkuMDE5IEM0My4yODUsMTE5LjAxOSAwLDE2OS4wMTcgMCwyMzQuODQxIEMwLDMyMC40MjggNzEuNzYxLDQ0Mi4xNzYgMTU4LjYwNCw0NDIuMTc2IEMyMDQuNDY1LDQ0Mi4xNzYgMjM3LjAwOSw0MTMuMzgyIDI4MS42MTgsNDEzLjM4MiBDMzI2LjIyNyw0MTMuMzgyIDM1NC42NDYsNDQyIDQxMC4xNDcsNDQyIEM0MTIuNDE3LDQ0MiA0MTQuNTQxLDQ0MS42OCA0MTYuNzA3LDQ0MS4wNzEgQzM3Ny4zMzgsNDI3LjYxNiAzNjEuNDU1LDQwMi4xMzMgMzYxLjQ1NSwzODQuMjU4IFogTTI5Ny4zODMsNzQuNzU1MSBDMzE3LjU4MSw1My43OTE4IDMzMC4zNTQsMjQuNTYxMiAzMjcuNzY5LDAgQzMwMy4zNjUsMS4wNzE0MyAyNzcuMzEsMTQuOTI4NiAyNTcuNDM5LDM2LjM0NjkgQzIzNy41NjcsNTcuNzY1MiAyMjIuNzMyLDg4LjAwNjEgMjI3LjMwNCwxMTMuMDMzIEMyNTQuMzIxLDExMy4wMzMgMjc3LjE4Niw5NS43MTkzIDI5Ny4zODMsNzQuNzU1MSBaIiBpZD0iU2hhcGUiPjwvcGF0aD4KICAgICAgICA8L2c+CiAgICA8L2c+Cjwvc3ZnPg==';
+        const appleLogo = new Image();
+        appleLogo.src = appleLogoSrc;
+
+        // --- Presets Definition ---
+        const presets = {
+            'Normal': { brightness: 100, contrast: 100, saturate: 100, temperature: 0, sharpen: 0 },
+            'Vintage': { brightness: 110, contrast: 90, saturate: 85, temperature: 20, sharpen: 10 },
+            'H/P': { brightness: 105, contrast: 120, saturate: 0, temperature: 0, sharpen: 15 },
+            'Sejuk': { brightness: 100, contrast: 105, saturate: 100, temperature: -25, sharpen: 5 },
+            'Hangat': { brightness: 100, contrast: 105, saturate: 110, temperature: 30, sharpen: 0 },
+            'Dramatis': { brightness: 95, contrast: 130, saturate: 110, temperature: -15, sharpen: 25 },
+        };
+
+        function initializeApp() {
+            // Inisialisasi Web Worker
+            try {
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                worker = new Worker(URL.createObjectURL(blob));
+                worker.onmessage = (e) => {
+                    const { imageData } = e.data;
+                    drawWatermark(imageData);
+                    isRendering = false;
+                };
+            } catch (e) {
+                console.error("Gagal membuat Web Worker, akan berjalan di main thread.", e);
+                worker = null; // Fallback jika worker gagal
+            }
+
+            // Inisialisasi Tombol Preset
+            Object.keys(presets).forEach(name => {
+                const btn = document.createElement('button');
+                btn.className = 'preset-btn';
+                btn.textContent = name;
+                if (name === 'Normal') btn.classList.add('active');
+                btn.onclick = () => applyPreset(name);
+                presetsContainer.appendChild(btn);
+            });
+        }
+
+        // Event Listeners - Disederhanakan untuk menghindari klik ganda
+        // uploadLabel.addEventListener('click', () => fileInput.click()); // Dihapus
+        fileInput.addEventListener('change', handleFileSelect);
+        resetBtn.addEventListener('click', resetUI); // Tombol "Pilih Lain"
+        resetAllBtn.addEventListener('click', resetAllEdits);
+
+        // Event listeners untuk slider
+        sliders.forEach(slider => {
+            slider.addEventListener('input', () => requestRedraw());
+        });
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadLabel.addEventListener(eventName, preventDefaults, false);
+        });
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        uploadLabel.addEventListener('dragenter', () => uploadLabel.classList.add('dragover'));
+        uploadLabel.addEventListener('dragover', () => uploadLabel.classList.add('dragover'));
+        uploadLabel.addEventListener('dragleave', () => uploadLabel.classList.remove('dragover'));
+        uploadLabel.addEventListener('drop', (e) => {
+            uploadLabel.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files && files.length > 0) {
+                fileInput.files = files;
+                handleFileSelect({ target: fileInput });
+            }
+        });
+
+        function resetUI() {
+            fileInput.value = '';
+            previewBox.style.display = 'none';
+            uploadBox.style.display = 'block';
+            loader.style.display = 'none';
+            originalImageData = null;
+            originalImage = null;
+            resetAllEdits();
+        }
+
+        function resetAllEdits() {
+            applyPreset('Normal');
+            requestRedraw();
+        }
+
+        function applyPreset(name) {
+            const settings = presets[name];
+            Object.keys(settings).forEach(key => {
+                document.getElementById(key).value = settings[key];
+            });
+            requestRedraw();
+        }
+
+        async function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            uploadBox.style.display = 'none';
+            loader.style.display = 'block';
+
+            try {
+                imageMetadata = await exifr.parse(file) || {};
+            } catch (e) {
+                console.error("Gagal membaca metadata EXIF:", e);
+                imageMetadata = {};
+            }
+            
+            imageFileName = file.name;
+            originalImage = new Image();
+            originalImage.onload = () => {
+                // Simpan data piksel asli sekali saja
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = originalImage.width;
+                tempCanvas.height = originalImage.height;
+                tempCtx.drawImage(originalImage, 0, 0);
+                originalImageData = tempCtx.getImageData(0, 0, originalImage.width, originalImage.height);
+                
+                requestRedraw(); // Gambar ulang dengan filter default
+                loader.style.display = 'none';
+                previewBox.style.display = 'block';
+            };
+            originalImage.onerror = () => {
+                alert("Gagal memuat file gambar. Pastikan file tidak rusak.");
+                resetUI();
+            };
+            originalImage.src = URL.createObjectURL(file);
+        }
+
+        function requestRedraw() {
+            if (isRendering) return;
+            // Debounce untuk mencegah rendering berlebihan saat slider digeser cepat
+            clearTimeout(renderTimeout);
+            renderTimeout = setTimeout(redrawCanvas, 50); 
+        }
+
+        function redrawCanvas() {
+            if (!originalImage || !originalImageData || isRendering) return;
+            isRendering = true;
+
+            // Update active preset button
+            document.querySelectorAll('.preset-btn.active').forEach(b => b.classList.remove('active'));
+            const currentValues = {};
+            sliders.forEach(s => currentValues[s.id] = parseFloat(s.value));
+            let matchedPreset = 'Custom';
+            for (const name in presets) {
+                if (Object.keys(presets[name]).every(key => presets[name][key] == currentValues[key])) {
+                    matchedPreset = name;
+                    break;
+                }
+            }
+            const activeBtn = Array.from(presetsContainer.children).find(b => b.textContent === matchedPreset);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            // Kirim data ke worker untuk diproses
+            const temperature = parseFloat(document.getElementById('temperature').value);
+            const sharpen = parseFloat(document.getElementById('sharpen').value);
+            const imageDataCopy = new ImageData(new Uint8ClampedArray(originalImageData.data), originalImageData.width, originalImageData.height);
+
+            // Jika worker ada, gunakan. Jika tidak (gagal atau diblokir), jalankan di main thread.
+            if (worker) {
+                worker.postMessage({ imageData: imageDataCopy, temperature, sharpen });
+            } else {
+                // Fallback jika worker tidak bisa dibuat atau gagal
+                console.warn("Menjalankan proses di main thread.");
+                const processedData = applyPixelFilters(imageDataCopy, temperature, sharpen);
+                drawWatermark(processedData);
+                isRendering = false;
+            }
+        }
+
+        function formatShutterSpeed(speed) {
+            if (!speed) return '';
+            // Handle potential zero or invalid values from EXIF
+            if (speed <= 0) return '';
+            if (speed >= 1) return `${speed}s`;
+            return `1/${Math.round(1 / speed)}s`;
+        }
+        
+        function getDeviceName(make, model) {
+            make = make || '';
+            model = model || '';
+            if (make.toLowerCase().includes('apple')) {
+                return model.replace('Apple', '').trim();
+            }
+            return model || make || 'Device';
+        }
+
+        // Fungsi ini meniru apa yang dilakukan worker, untuk fallback
+        function applyPixelFilters(imageData, temperature, sharpen) {
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+
+            // 1. Apply Temperature
+            if (temperature !== 0) {
+                const tempValue = temperature / 50; // normalize to -1 to 1
+                for (let i = 0; i < data.length; i += 4) {
+                    if (tempValue > 0) { // Warm
+                        data[i] = Math.min(255, data[i] + 30 * tempValue);
+                        data[i + 1] = Math.min(255, data[i + 1] + 15 * tempValue);
+                    } else { // Cool
+                        data[i + 2] = Math.min(255, data[i + 2] - 30 * tempValue);
+                    }
+                }
+            }
+
+            // 2. Apply Sharpen (Convolution)
+            if (sharpen > 0) {
+                const sharpenFactor = sharpen / 100;
+                const kernel = [
+                    [0, -sharpenFactor, 0],
+                    [-sharpenFactor, 1 + 4 * sharpenFactor, -sharpenFactor],
+                    [0, -sharpenFactor, 0]
+                ];
+                const side = Math.floor(kernel.length / 2);
+                const tempData = new Uint8ClampedArray(data);
+
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const dstOff = (y * width + x) * 4;
+                        let r = 0, g = 0, b = 0;
+                        for (let cy = 0; cy < kernel.length; cy++) {
+                            for (let cx = 0; cx < kernel.length; cx++) {
+                                const scy = Math.min(height - 1, Math.max(0, y + cy - side));
+                                const scx = Math.min(width - 1, Math.max(0, x + cx - side));
+                                const srcOff = (scy * width + scx) * 4;
+                                r += tempData[srcOff] * kernel[cy][cx];
+                                g += tempData[srcOff + 1] * kernel[cy][cx];
+                                b += tempData[srcOff + 2] * kernel[cy][cx];
+                            }
+                        }
+                        data[dstOff] = r;
+                        data[dstOff + 1] = g;
+                        data[dstOff + 2] = b;
+                    }
+                }
+            }
+            return imageData;
+        }
+
+        function drawWatermark(processedImageData) {
+            // --- DATA CADANGAN (FALLBACK) ---
+            // Jika foto tidak punya info, data ini akan dipakai.
+            // Data diambil dari contoh yang Anda berikan.
+            const defaultData = {
+                Make: 'Apple',
+                Model: 'iPhone 15 Pro Max',
+                FocalLength: 120,
+                FNumber: 2.8,
+                ExposureTime: 1/99,
+                ISOSpeedRatings: 50
+            };
+
+            const imgWidth = processedImageData.width;
+            const imgHeight = processedImageData.height;
+
+            // --- Siapkan Teks Watermark ---
+            // Menggunakan data dari foto, atau data cadangan jika tidak ada.
+            const deviceName = getDeviceName(metadata?.Make ?? defaultData.Make, metadata?.Model ?? defaultData.Model);
+            const isAppleDevice = (metadata?.Make ?? defaultData.Make).toLowerCase().includes('apple');
+            const mainText = `Shot on ${deviceName}`;
+            
+            const focalLength = metadata?.FocalLength ? `${Math.round(metadata.FocalLength)}mm` : `${defaultData.FocalLength}mm`;
+            const aperture = metadata?.FNumber ? `f/${metadata.FNumber.toFixed(1)}` : `f/${defaultData.FNumber.toFixed(1)}`;
+            const shutter = formatShutterSpeed(metadata?.ExposureTime ?? defaultData.ExposureTime);
+            const iso = metadata?.ISOSpeedRatings ? `ISO${metadata.ISOSpeedRatings}` : `ISO${defaultData.ISOSpeedRatings}`;
+            const subText = [focalLength, aperture, shutter, iso].filter(Boolean).join('  ');
+
+            // --- Proses Menggambar di Canvas ---
+            const sidePadding = Math.round(imgWidth * 0.03); // Bingkai samping 3% dari lebar gambar
+            const topPadding = sidePadding; // Bingkai atas sama dengan samping
+            const bottomWatermarkHeight = Math.round(imgHeight * 0.15); // Area watermark bawah 15% dari tinggi gambar
+
+            const canvasWidth = imgWidth + (sidePadding * 2);
+            const canvasHeight = imgHeight + topPadding + bottomWatermarkHeight;
+
+            // --- Alur Rendering yang Disederhanakan dan Diperbaiki ---
+            // 1. Buat kanvas sementara untuk menampung gambar yang sudah diproses pikselnya
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = imgWidth;
+            tempCanvas.height = imgHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.putImageData(processedImageData, 0, 0);
+
+            // 2. Siapkan semua filter CSS dalam satu string
+            let cssFilters = '';
+            sliders.forEach(slider => {
+                if (slider.dataset.filter) {
+                    cssFilters += `${slider.dataset.filter}(${slider.value}${slider.dataset.unit}) `;
+                }
+            });
+            
+            // 3. Atur ukuran kanvas utama dan gambar latar belakang putih
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+            // 4. Terapkan filter CSS ke konteks kanvas utama
+            ctx.filter = cssFilters.trim();
+
+            // 5. Gambar kanvas sementara (yang berisi hasil olahan worker) ke kanvas utama.
+            // Filter CSS yang sudah aktif akan diterapkan pada saat penggambaran ini.
+            ctx.drawImage(tempCanvas, sidePadding, topPadding);
+
+            // 6. Reset filter agar tidak mempengaruhi teks watermark
+            ctx.filter = 'none';
+
+            // Pengaturan Font dan Posisi
+            const watermarkContentY = topPadding + imgHeight;
+            const watermarkContentHeight = bottomWatermarkHeight;
+            
+            const textPadding = watermarkContentHeight * 0.2;
+            const contentHeight = watermarkContentHeight - (textPadding * 2);
+            const mainFontSize = contentHeight * 0.4;
+            const subFontSize = contentHeight * 0.28;
+
+            // Teks Utama (dan Logo)
+            ctx.fillStyle = '#000000';
+            ctx.font = `600 ${mainFontSize}px 'Inter', sans-serif`;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+
+            const mainTextMetrics = ctx.measureText(mainText);
+            let logoSize = mainFontSize * 1.1;
+            let logoPadding = mainFontSize * 0.3;
+            let totalWidth = mainTextMetrics.width + (isAppleDevice ? logoSize + logoPadding : 0);
+            let startX = (canvasWidth - totalWidth) / 2;
+            const mainY = watermarkContentY + textPadding + (contentHeight / 2) - (subFontSize / 2) - (mainFontSize * 0.1);
+
+            if (isAppleDevice) {
+                ctx.drawImage(appleLogo, startX, mainY - logoSize / 2, logoSize, logoSize);
+                startX += logoSize + logoPadding;
+            }
+            ctx.fillText(mainText, startX, mainY);
+
+            // Teks Tambahan (Lensa, ISO, dll)
+            ctx.fillStyle = '#808080';
+            ctx.textAlign = 'center';
+            ctx.font = `400 ${subFontSize}px 'Inter', sans-serif`;
+            const subY = watermarkContentY + watermarkContentHeight - textPadding - subFontSize / 2;
+            ctx.fillText(subText, canvasWidth / 2, subY);
+
+            // --- Siapkan Tombol Unduh ---
+            const finalFileName = `edited_${imageFileName.split('.').slice(0, -1).join('.')}.jpeg`;
+            downloadBtn.href = canvas.toDataURL('image/jpeg', 0.95);
+            downloadBtn.download = finalFileName;
+        }
+
+        initializeApp();
+    </script>
+
+</body>
+</html>
